@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 from .proc_parsers import ContextSwitchesMonitor
+from .proc_parsers import SchedStatMonitor
 from .data_aggregator import DataAggregator
 from .renderer import Renderer
 
@@ -10,8 +11,9 @@ class MonitorAggregator:
     def __init__(self, pid, filename, verbose):
         self.monitors = []
         self.pid = pid
-        self.dataAggregator = DataAggregator(Renderer(filename))
+        self.dataAggregator = DataAggregator(Renderer(filename), verbose)
         self.monitors.append(ContextSwitchesMonitor(pid, self.dataAggregator))
+        self.monitors.append(SchedStatMonitor(pid, self.dataAggregator))
         self.dataAggregator.outputHeader()
         self.verbose = verbose
 
@@ -33,8 +35,8 @@ def monitor_process_main():
                         help ="<pid> of the process to monitor.")
     parser.add_argument('--file',
                         help ="output file.")
-    parser.add_argument('-verbose',
-                        help ="verbose.")
+    parser.add_argument('--verbose', dest='verbose', action='store_true')
+    parser.set_defaults(verbose=False)
   
     args = parser.parse_args()
   
@@ -47,13 +49,17 @@ def monitor_process_main():
         filename = args.file
     print('Output file: ', filename)
 
-    if args.verbose is None:
-        args.verbose = False
+    if args.verbose:
+        print("Enable verbose")
 
     aggregator = MonitorAggregator(args.pid, filename, args.verbose)
-    aggregator.oneCycle()
-    time.sleep(1)
-    aggregator.oneCycle()
+
+    try:
+        while True:
+            aggregator.oneCycle()
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print('Interrupted')
     aggregator.close()
 
 if __name__ == '__main__':
